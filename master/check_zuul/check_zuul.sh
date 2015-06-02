@@ -20,6 +20,7 @@
 
 SCRIPT_NAME="`basename $0`"
 ZUUL_LOG_FILE=${ZUUL_LOG_FILE:-"/var/log/zuul/zuul.log"}
+ZUUL_DEBUG_FILE=${ZUUL_DEBUG_FILE:-"/var/log/zuul/debug.log"}
 MAX_LOOP=4
 SLEEP_SEC=15
 CHECK_CNT=0
@@ -28,8 +29,12 @@ JENKINS_CLI=/usr/local/jenkins/jenkins-cli.jar
 TRB_MAX=${TRB_MAX:-300}
 ZUUL_FAIL_CNT=0
 ZUUL_FAIL_TOTAL=0
+ZUUL_DEBUG_CNT=0
 ZUUL_FAIL_STR=(
 "AttributeError: 'NoneType' object has no attribute"
+)
+ZUUL_DEBUG_STR=(
+"Looking for lost builds"
 )
 
 
@@ -66,6 +71,7 @@ function restart_zuul {
     echo "Start zuul-merger"
     ZUUL_FAIL_CNT=0
     ZUUL_FAIL_TOTAL=0
+    ZUUL_DEBUG_CNT=0
 }
 
 function zuul_exists {
@@ -98,7 +104,7 @@ function check_zuul_log {
     do
         str=${ZUUL_FAIL_STR[$i]}
         if tail -n 20 $ZUUL_LOG_FILE | grep "$str" > /dev/null; then
-            echo "Currently zuul had exception."
+            echo "Currently zuul is in trouble"
             ZUUL_FAIL_CNT=$((++ZUUL_FAIL_CNT))
             if [[ $(($SLEEP_SEC*$ZUUL_FAIL_CNT)) -ge $TRB_MAX ]]; then
                 echo "fail count reached the max"
@@ -118,7 +124,28 @@ function check_zuul_log {
         ZUUL_FAIL_TOTAL=0
         return 2
     fi
-    echo "Currently zuul is normaly running"
+    echo "Currently zuul is normaly running from zuul log"
+    return 0
+}
+
+function check_zuul_debug_log {
+    for (( i=0; i < ${#ZUUL_DEBUG_STR[@]}; ++i ))
+    do
+        str=${ZUUL_DEBUG_STR[$i]}
+        if tail -n 1 $ZUUL_DEBUG_FILE | grep "$str" > /dev/null; then
+            echo "Currently zuul in trouble"
+            ZUUL_DEBUG_CNT=$((++ZUUL_DEBUG_CNT))
+            if [[ $(($SLEEP_SEC*$ZUUL_DEBUG_CNT)) -ge $TRB_MAX ]]; then
+                echo "debug fail count reached the max"
+                ZUUL_DEBUG_CNT=0
+                return 1
+            else
+                return 0
+            fi
+        fi
+    done
+    ZUUL_DEBUG_CNT=0
+    echo "Currently zuul is normaly running from debug log"
     return 0
 }
 
@@ -158,11 +185,18 @@ if [[ -n "$ZUUL_FAIL_STR_FILE" ]]; then
         ZUUL_FAIL_STR=("${ZUUL_FAIL_STR[@]}" "$LINE")
     done
 fi
+if [[ -n "$ZUUL_DEBUG_STR_FILE" ]]; then
+    ZUUL_DEBUG_STR=()
+    exec < $ZUUL_DEBUG_STR_FILE
+    while read LINE; do
+        ZUUL_DEBUG_STR=("${ZUUL_DEBUG_STR[@]}" "$LINE")
+    done
+fi
 echo "########## Start checking zuul script ##########"
 declare -p MAX_LOOP SLEEP_SEC COUNT
 declare -p TRB_MAX TOTAL_FAIL_MAX CHECK_INT_ZUUL
-declare -p ZUUL_FAIL_CNT
-declare -p ZUUL_FAIL_STR
+declare -p ZUUL_FAIL_CNT ZUUL_DEBUG_CNT
+declare -p ZUUL_FAIL_STR ZUUL_DEBUG_STR
 echo "sleep every $SLEEP_SEC sec"
 while [ $COUNT -lt $MAX_LOOP ]; do
     sleep $SLEEP_SEC
@@ -184,11 +218,15 @@ while [ $COUNT -lt $MAX_LOOP ]; do
     fi
     echo "check zuul log"
     if ! check_zuul_log; then
-        echo "zuul is in trouble."
+        echo "Restart zuul !!"
+        date
+        restart_zuul
+    elif ! check_zuul_debug_log; then
+        echo "Restart zuul !!"
         date
         restart_zuul
     fi
-    declare -p ZUUL_FAIL_CNT
+    declare -p ZUUL_FAIL_CNT ZUUL_DEBUG_CNT
     if [[ $MAX_LOOP -ne 0 ]]; then
         COUNT=$((COUNT+1))
     fi
