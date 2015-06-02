@@ -26,7 +26,8 @@ CHECK_CNT=0
 CHECK_INT_ZUUL=0
 JENKINS_CLI=/usr/local/jenkins/jenkins-cli.jar
 TRB_MAX=${TRB_MAX:-300}
-ZUUL_LOG_CNT=0
+ZUUL_FAIL_CNT=0
+ZUUL_FAIL_TOTAL=0
 ZUUL_FAIL_STR=(
 "AttributeError: 'NoneType' object has no attribute"
 )
@@ -63,6 +64,8 @@ function restart_zuul {
     fi
     service zuul-merger start
     echo "Start zuul-merger"
+    ZUUL_FAIL_CNT=0
+    ZUUL_FAIL_TOTAL=0
 }
 
 function zuul_exists {
@@ -96,17 +99,26 @@ function check_zuul_log {
         str=${ZUUL_FAIL_STR[$i]}
         if tail -n 20 $ZUUL_LOG_FILE | grep "$str" > /dev/null; then
             echo "Currently zuul had exception."
-            ZUUL_LOG_CNT=$((++ZUUL_LOG_CNT))
-            if [[ $(($SLEEP_SEC*$ZUUL_LOG_CNT)) -ge $TRB_MAX ]]; then
-                ZUUL_LOG_CNT=0
+            ZUUL_FAIL_CNT=$((++ZUUL_FAIL_CNT))
+            if [[ $(($SLEEP_SEC*$ZUUL_FAIL_CNT)) -ge $TRB_MAX ]]; then
+                echo "fail count reached the max"
+                ZUUL_FAIL_CNT=0
+                ZUUL_FAIL_TOTAL=0
                 return 1
             else
                 return 0
             fi
         fi
     done
+    ZUUL_FAIL_TOTAL=$(($ZUUL_FAIL_TOTAL+$ZUUL_FAIL_CNT))
+    ZUUL_FAIL_CNT=0
+    declare -p ZUUL_FAIL_TOTAL
+    if [[ $ZUUL_FAIL_TOTAL -ge $TOTAL_FAIL_MAX ]]; then
+        echo "total fail count reached the max"
+        ZUUL_FAIL_TOTAL=0
+        return 2
+    fi
     echo "Currently zuul is normaly running"
-    ZUUL_LOG_CNT=0
     return 0
 }
 
@@ -138,6 +150,7 @@ else
     COUNT=0
     #SLEEP_SEC=$((60/$MAX_LOOP))
 fi
+TOTAL_FAIL_MAX=$(($TRB_MAX/$SLEEP_SEC))
 if [[ -n "$ZUUL_FAIL_STR_FILE" ]]; then
     ZUUL_FAIL_STR=()
     exec < $ZUUL_FAIL_STR_FILE
@@ -147,8 +160,8 @@ if [[ -n "$ZUUL_FAIL_STR_FILE" ]]; then
 fi
 echo "########## Start checking zuul script ##########"
 declare -p MAX_LOOP SLEEP_SEC COUNT
-declare -p TRB_MAX CHECK_INT_ZUUL
-declare -p ZUUL_LOG_CNT
+declare -p TRB_MAX TOTAL_FAIL_MAX CHECK_INT_ZUUL
+declare -p ZUUL_FAIL_CNT
 declare -p ZUUL_FAIL_STR
 echo "sleep every $SLEEP_SEC sec"
 while [ $COUNT -lt $MAX_LOOP ]; do
@@ -166,7 +179,6 @@ while [ $COUNT -lt $MAX_LOOP ]; do
     if [[ $CHECK_CNT -eq 0 ]]; then
         echo "check if zuul exists"
         if ! zuul_exists; then
-            ZUUL_LOG_CNT=0
             continue
         fi
     fi
@@ -176,7 +188,7 @@ while [ $COUNT -lt $MAX_LOOP ]; do
         date
         restart_zuul
     fi
-    declare -p ZUUL_LOG_CNT
+    declare -p ZUUL_FAIL_CNT
     if [[ $MAX_LOOP -ne 0 ]]; then
         COUNT=$((COUNT+1))
     fi
