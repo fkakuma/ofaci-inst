@@ -3,7 +3,7 @@
 # scripts and data file
 if [[ ! -e "$WORKSPACE/81-tempest.sh" ]]; then
     if [[ ! -e 81-tempest.sh ]]; then
-        wget https://raw.github.com/osrg/ofaci-inst/master/slave/os/81-tempest.sh || true
+        wget https://raw.github.com/fkakuma/ofaci-inst/ofaci-os/slave/os/81-tempest.sh || true
     fi
     if [[ -e 81-tempest.sh && ! -e "$WORKSPACE/81-tempest.sh" ]]; then
         cp 81-tempest.sh $WORKSPACE/81-tempest.sh
@@ -11,7 +11,7 @@ if [[ ! -e "$WORKSPACE/81-tempest.sh" ]]; then
 fi
 if [[ ! -e "$WORKSPACE/get_ofalog.sh" ]]; then
     if [[ ! -e get_ofalog.sh ]]; then
-        wget https://raw.github.com/osrg/ofaci-inst/master/slave/os/get_ofalog.sh || true
+        wget https://raw.github.com/fkakuma/ofaci-inst/ofaci-os/slave/os/get_ofalog.sh || true
     fi
     if [[ -e get_ofalog.sh && ! -e "$WORKSPACE/get_ofalog.sh" ]]; then
         cp get_ofalog.sh $WORKSPACE/get_ofalog.sh
@@ -19,7 +19,7 @@ if [[ ! -e "$WORKSPACE/get_ofalog.sh" ]]; then
 fi
 if [[ ! -e "$WORKSPACE/features.yaml" ]]; then
     if [[ ! -e features.yaml ]]; then
-        wget https://raw.github.com/osrg/ofaci-inst/master/slave/os/features.yaml || true
+        wget https://raw.github.com/fkakuma/ofaci-inst/ofaci-os/slave/os/features.yaml || true
     fi
     if [[ -e features.yaml && ! -e "$WORKSPACE/features.yaml" ]]; then
         cp features.yaml $WORKSPACE/features.yaml
